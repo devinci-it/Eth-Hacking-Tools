@@ -90,11 +90,32 @@ fi
 mkdir -p "$WORDLIST_DIR"
 mkdir -p "$OUTPUT_DIR"
 
-# Update wordlist function
+# Update wordlist function (only update once per day)
 update_wordlist() {
+    local LAST_UPDATE_FILE="$WORDLIST_DIR/.last_update"
+
+    # Check if updated within last 24 hours
+    if [[ -f "$LAST_UPDATE_FILE" ]]; then
+        local last_update_ts
+        last_update_ts=$(cat "$LAST_UPDATE_FILE")
+
+        # Current timestamp
+        local now_ts
+        now_ts=$(date +%s)
+
+        # 86400 seconds = 24 hours
+        if (( now_ts - last_update_ts < 86400 )); then
+            echo "[i] Wordlist was already updated within the last 24 hours."
+            echo "[i] Skipping download and using: $DEFAULT_WORDLIST"
+            return 0
+        fi
+    fi
+
     echo "[*] Attempting to download/update DNS wordlist from SecLists..."
     if curl -fsSL "$WORDLIST_URL" -o "$DEFAULT_WORDLIST"; then
         echo "[+] Wordlist updated successfully at $DEFAULT_WORDLIST"
+        # Write current timestamp
+        date +%s > "$LAST_UPDATE_FILE"
     else
         echo "[!] Failed to fetch wordlist from online source."
         if [[ -f "$DEFAULT_WORDLIST" && -s "$DEFAULT_WORDLIST" ]]; then
@@ -106,7 +127,6 @@ update_wordlist() {
         fi
     fi
 }
-
 # Find authoritative NS IPs for domain
 find_ns_ip() {
     local domain="$1"
