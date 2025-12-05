@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -euo pipefail
+#set -euo pipefail
 
 WORDLIST_URL="https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/DNS/subdomains-top1million-5000.txt"
 WORDLIST_DIR="$HOME/.dns_enum_wordlists"
@@ -122,9 +122,13 @@ find_ns_ip() {
     if [[ ${#ns_ips[@]} -gt 0 ]]; then
         echo "[+] Found authoritative NS IP(s): ${ns_ips[*]}"
         echo "${ns_ips[0]}"
+	RESOLVER="${ns_ips[0]}"
+        return 0
+        
     else
         echo "[i] No authoritative NS IP found, will use default resolver $DEFAULT_RESOLVER"
         echo "$DEFAULT_RESOLVER"
+        return 1
     fi
 }
 
@@ -141,11 +145,15 @@ else
 fi
 
 # Determine resolver IP
-if [[ -z "$RESOLVER" ]]; then
-    RESOLVER=$(find_ns_ip "$DOMAIN")
+find_ns_ip $DOMAIN
+# Check the return status
+if [[ $? -eq 0 ]]; then
+    echo "Using RESOLVER: $RESOLVER"
+else
+    RESOLVER="$DEFAULT_RESOLVER"
+    echo "No authoritative NS found. Using default RESOLVER: $RESOLVER"
 fi
 
-echo "[*] Using resolver: $RESOLVER"
 echo "[*] Using delay: $DELAY"
 
 
@@ -162,7 +170,8 @@ echo "$CMD_STR" >> "$OUTPUT_FILE"
 echo "### Output:" >> "$OUTPUT_FILE"
 
 # Run gobuster and tee output (append) to file and terminal
-"${GOBUSTER_CMD[@]}" 2>&1 | tee -a "$OUTPUT_FILE"
+eval "$CMD_STR" 2>&1 | tee -a "$OUTPUT_FILE"
 
 echo "[*] Enumeration complete. Results saved in $OUTPUT_FILE"
+
 
