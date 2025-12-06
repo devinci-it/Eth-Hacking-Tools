@@ -1,11 +1,12 @@
+
 #!/bin/bash
 
-#set -euo pipefail
 
 WORDLIST_URL="https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/DNS/subdomains-top1million-5000.txt"
 WORDLIST_DIR="$HOME/.dns_enum_wordlists"
 DEFAULT_WORDLIST="$WORDLIST_DIR/subdomains-top1million-5000.txt"
-OUTPUT_DIR="./dns_enum_results"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+OUTPUT_DIR="$SCRIPT_DIR/dns_enum_results"
 DEFAULT_RESOLVER="8.8.8.8"
 DEFAULT_DELAY="150ms"
 
@@ -20,6 +21,7 @@ Options:
       --resolver <resolver>       DNS resolver to use (default: auto-discovered or $DEFAULT_RESOLVER)
       --delay <duration>          Delay between requests (default: $DEFAULT_DELAY)
       --no-error, --ne            Suppress error output (default: false)
+  -o, --output <file>             Specify an output file (optional)
   -h, --help                     Show this help message
 
 Example:
@@ -43,6 +45,7 @@ CHECK_CNAME=false
 RESOLVER=""
 DELAY="$DEFAULT_DELAY"
 NO_ERROR=false
+OUTPUT_FILE=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -70,6 +73,10 @@ while [[ $# -gt 0 ]]; do
         --no-error|--ne)
             NO_ERROR=true
             shift
+            ;;
+        -o|--output)
+            OUTPUT_FILE="$2"
+            shift 2
             ;;
         -h|--help)
             usage
@@ -127,6 +134,7 @@ update_wordlist() {
         fi
     fi
 }
+
 # Find authoritative NS IPs for domain
 find_ns_ip() {
     local domain="$1"
@@ -142,7 +150,7 @@ find_ns_ip() {
     if [[ ${#ns_ips[@]} -gt 0 ]]; then
         echo "[+] Found authoritative NS IP(s): ${ns_ips[*]}"
         echo "${ns_ips[0]}"
-	RESOLVER="${ns_ips[0]}"
+        RESOLVER="${ns_ips[0]}"
         return 0
         
     else
@@ -176,9 +184,11 @@ fi
 
 echo "[*] Using delay: $DELAY"
 
-
-OUTPUT_FILE="$OUTPUT_DIR/${DOMAIN}_dns_enum_$(date +%Y%m%d_%H%M%S).txt"
-
+# If output file is not specified, create a temporary file
+if [[ -z "$OUTPUT_FILE" ]]; then
+    OUTPUT_FILE=$(mktemp "/tmp/${DOMAIN}_dns_enum_$(date +%Y%m%d_%H%M%S).txt")
+fi
+   
 # Construct command string for logging
 CMD_STR="gobuster dns --domain \"$DOMAIN\" --wordlist \"$WORDLIST\" --resolver \"$RESOLVER\" --delay \"$DELAY\" --threads 10"
 $CHECK_CNAME && CMD_STR+=" --check-cname"
@@ -193,5 +203,3 @@ echo "### Output:" >> "$OUTPUT_FILE"
 eval "$CMD_STR" 2>&1 | tee -a "$OUTPUT_FILE"
 
 echo "[*] Enumeration complete. Results saved in $OUTPUT_FILE"
-
-
